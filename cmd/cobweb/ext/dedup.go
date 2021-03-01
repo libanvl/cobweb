@@ -1,17 +1,27 @@
-package main
+package ext
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/dixonwille/wlog/v3"
 	"github.com/dixonwille/wmenu/v5"
+	"github.com/libanvl/cobweb/pkg/warden"
 )
 
-func doDedupExact(ui wlog.UI, opt wmenu.Opt, cli *Cli) error {
-	ui.Output("Clean Duplicates (Exact)")
-	ui.Output("========================")
-	fmt.Println()
+func init() {
+	var _ RunEntry = dedup{}
+	GlobalRunRegistry["Clean Duplicate Hostnames (Exact)"] = func(ro *RunOpts, t string) (RunEntry, error) {
+		return dedup{opts: ro, title: t}, nil
+	}
+}
+
+type dedup struct {
+	opts  *RunOpts
+	title string
+}
+
+func (d dedup) Run() error {
+	ui := d.opts.UI
+	cli := d.opts.Warden
 
 	ui.Running("Finding duplicates")
 	vault, err := cli.Vault()
@@ -20,7 +30,7 @@ func doDedupExact(ui wlog.UI, opt wmenu.Opt, cli *Cli) error {
 		return err
 	}
 
-	hnitems := vault.HostnameItemMap(func(i *Item, s string, e error) {
+	hnitems := vault.HostnameItemMap(func(i *warden.Item, s string, e error) {
 		ui.Warn(fmt.Sprintf("ID: %s, URL: %s", i.ID, s))
 		ui.Warn(e.Error())
 	})
@@ -34,14 +44,18 @@ func doDedupExact(ui wlog.UI, opt wmenu.Opt, cli *Cli) error {
 	ui.Success(fmt.Sprintf("Found duplicates: %d", len(hnitems)))
 	fmt.Println()
 
-	return processMap(ui, hnitems, cli)
+	return d.processMap(hnitems)
 }
 
-func processMap(ui wlog.UI, hnitems HostnameItemMap, cli *Cli) error {
+func (d *dedup) processMap(hnitems warden.HostnameItemMap) error {
+	ui := d.opts.UI
+	cli := d.opts.Warden
+	menubld := d.opts.MenuBuilder
+
 	for hname, items := range hnitems {
 		ui.Info(hname)
 
-		menu := DefaultMenu("Delete which items?")
+		menu := menubld.DefaultMenu("Delete which items?")
 		menu.AllowMultiple()
 		menu.LoopOnInvalid()
 		menu.Action(func(opts []wmenu.Opt) error {
@@ -55,11 +69,7 @@ func processMap(ui wlog.UI, hnitems HostnameItemMap, cli *Cli) error {
 
 			ui.Running(fmt.Sprintf("Deleting items"))
 			for _, opt := range opts {
-				item, ok := opt.Value.(*Item)
-				if !ok {
-					panic("Unexpected type")
-				}
-
+				item := opt.Value.(*warden.Item)
 				if err := cli.DeleteItem(item); err != nil {
 					ui.Error(err.Error())
 				}
@@ -75,12 +85,7 @@ func processMap(ui wlog.UI, hnitems HostnameItemMap, cli *Cli) error {
 		}
 
 		menu.Option("Skip", "SKIP", true, nil)
-		menu.Option("Exit", "EXIT", false, func(o wmenu.Opt) error {
-			ui.Info("Exiting")
-			os.Exit(0)
-			return nil
-		})
-
+		menu = menubld.AddExit(menu, 0, ui.Success, false)
 		err := menu.Run()
 		if err != nil {
 			return err

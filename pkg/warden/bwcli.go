@@ -1,4 +1,4 @@
-package main
+package warden
 
 import (
 	"context"
@@ -8,36 +8,44 @@ import (
 	"time"
 )
 
-type Cli struct {
+type Warden interface {
+	ExePath() string
+	Sync() (string, error)
+	Status() (*Status, error)
+	Vault() (Vault, error)
+	DeleteItem(*Item) error
+}
+
+type cli struct {
 	bwexe   string
 	timeout time.Duration
 }
 
 type operation func(context.Context) error
 
-func NewCli(bwexe string, timeout time.Duration) *Cli {
-	return &Cli{
-		bwexe:   bwexe,
-		timeout: timeout,
-	}
+func init() {
+	var _ Warden = cli{}
 }
 
-func (cli *Cli) CheckExePath() (string, error) {
-	bwexe, err := exec.LookPath(cli.bwexe)
+func NewWarden(bwexe string, timeout time.Duration) (Warden, error) {
+	bwexe, err := exec.LookPath(bwexe)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	cli.bwexe = bwexe
-	return cli.bwexe, nil
+	return &cli{bwexe: bwexe, timeout: timeout}, nil
 }
 
-func (cli Cli) Sync() (string, error) {
+func (c cli) ExePath() string {
+	return c.bwexe
+}
+
+func (c cli) Sync() (string, error) {
 	var out []byte
-	err := cli.withTimeout(
+	err := c.withTimeout(
 		context.Background(),
 		func(ctx context.Context) error {
-			cmd := cli.command(ctx, "sync")
+			cmd := c.command(ctx, "sync")
 			var _err error
 			out, _err = cmd.CombinedOutput()
 			if _err != nil {
@@ -54,13 +62,13 @@ func (cli Cli) Sync() (string, error) {
 	return string(out), nil
 }
 
-func (cli Cli) Status() (*Status, error) {
+func (c cli) Status() (*Status, error) {
 	var out []byte
 	var status Status
-	err := cli.withTimeout(
+	err := c.withTimeout(
 		context.Background(),
 		func(ctx context.Context) error {
-			cmd := cli.command(ctx, "status", "--raw")
+			cmd := c.command(ctx, "status", "--raw")
 			var _err error
 			out, _err = cmd.Output()
 			if _err != nil {
@@ -81,13 +89,13 @@ func (cli Cli) Status() (*Status, error) {
 	return &status, nil
 }
 
-func (cli Cli) Vault() (Vault, error) {
+func (c cli) Vault() (Vault, error) {
 	var out []byte
 	var vault Vault
-	err := cli.withTimeout(
+	err := c.withTimeout(
 		context.Background(),
 		func(ctx context.Context) error {
-			cmd := cli.command(ctx, "list", "items", "--raw")
+			cmd := c.command(ctx, "list", "items", "--raw")
 			var _err error
 			out, _err = cmd.Output()
 			if _err != nil {
@@ -107,25 +115,25 @@ func (cli Cli) Vault() (Vault, error) {
 	return vault, nil
 }
 
-func (cli Cli) DeleteItem(item *Item) error {
-	return cli.withTimeout(
+func (c cli) DeleteItem(item *Item) error {
+	return c.withTimeout(
 		context.Background(),
 		func(ctx context.Context) error {
-			cmd := cli.command(ctx, "delete", "item", item.ID)
+			cmd := c.command(ctx, "delete", "item", item.ID)
 			return cmd.Run()
 		})
 }
 
-func (cli Cli) command(ctx context.Context, arg ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, cli.bwexe, arg...)
+func (c cli) command(ctx context.Context, arg ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, c.bwexe, arg...)
 }
 
-func (cli Cli) withTimeout(parent context.Context, op operation) error {
+func (c cli) withTimeout(parent context.Context, op operation) error {
 	if op == nil {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(parent, cli.timeout)
+	ctx, cancel := context.WithTimeout(parent, c.timeout)
 	defer cancel()
 	cmderr := op(ctx)
 	if cxterr := ctx.Err(); cxterr != nil {

@@ -1,4 +1,4 @@
-package main
+package warden
 
 import (
 	"net/url"
@@ -7,6 +7,7 @@ import (
 type Vault []*Item
 
 type HostnameItemMap map[string][]*Item
+type PasswordItemMap map[string][]*Item
 
 func (v Vault) HostnameItemMap(onerr func(*Item, string, error)) HostnameItemMap {
 	result := make(HostnameItemMap, 0)
@@ -31,6 +32,24 @@ func (v Vault) HostnameItemMap(onerr func(*Item, string, error)) HostnameItemMap
 			} else {
 				result[hname] = append(result[hname], item)
 			}
+		}
+	}
+
+	return result
+}
+
+func (v Vault) PasswordItemMap() PasswordItemMap {
+	result := make(PasswordItemMap, 0)
+	for _, item := range v {
+		if item.Type != LoginItem {
+			continue
+		}
+
+		pword := item.Login.Password
+		if _, ok := result[pword]; !ok {
+			result[pword] = []*Item{item}
+		} else {
+			result[pword] = append(result[pword], item)
 		}
 	}
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -9,7 +8,8 @@ import (
 	"time"
 
 	"github.com/dixonwille/wlog/v3"
-	"github.com/dixonwille/wmenu/v5"
+	"github.com/libanvl/cobweb/cmd/cobweb/ext"
+	"github.com/libanvl/cobweb/pkg/warden"
 )
 
 func main() {
@@ -27,15 +27,13 @@ func main() {
 		os.Exit(0)
 	}
 
-	cli := NewCli(*fbw, *fto)
-
-	cliexepath, err := cli.CheckExePath()
+	cli, err := warden.NewWarden(*fbw, *fto)
 	if err != nil {
 		ui.Error(err.Error())
 		os.Exit(1)
 	}
 
-	ui.Info(fmt.Sprintf("Using cli: %s", cliexepath))
+	ui.Info(fmt.Sprintf("Using cli: %s", cli.ExePath()))
 	fmt.Println()
 
 	status, err := cli.Status()
@@ -49,8 +47,9 @@ func main() {
 	ui.Info(fmt.Sprintf("Status:\t%s", status.Status))
 	fmt.Println()
 
-	if status.Status != StatusUnlocked {
+	if status.Status != warden.StatusUnlocked {
 		ui.Error("BitWarden CLI must have an active unlocked session")
+		ui.Info("$> export BW_SESSION=(bw --raw unlock)")
 		os.Exit(3)
 	}
 
@@ -58,11 +57,7 @@ func main() {
 		ui.Running("Syncing vault...")
 		out, err := cli.Sync()
 		if err != nil {
-			if err == context.DeadlineExceeded {
-				ui.Error("Operation timed out")
-			} else {
-				ui.Error(err.Error())
-			}
+			ui.Error(err.Error())
 			os.Exit(3)
 		}
 		ui.Success(out)
@@ -72,24 +67,21 @@ func main() {
 
 	fmt.Println()
 
-	menu := DoMenu(ui, "Which utility would you like to run?")
-	menu.Option("Clean duplicates (exact)", func(ui wlog.UI, opt wmenu.Opt) error {
-		return doDedupExact(ui, opt, cli)
-	}, false, nil)
-	menu.Option("Clean duplicates (fuzzy)", doDedupFuzzy, false, nil)
-	menu.Option("Make URIs secure", doSecureUri, false, nil)
+	menubld := MenuBuilder{}
+
+	opts := ext.RunOpts{
+		UI:          ui,
+		MenuBuilder: menubld,
+		Warden:      cli,
+	}
+
+	menu := menubld.DefaultMenu("Which utility would you like to run?")
+	menu = menubld.AddRunEntries(menu, &opts, ext.GlobalRunRegistry)
+	menu = menubld.AddExit(menu, 0, ui.Success, true)
 	err = menu.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func doSecureUri(wlog.UI, wmenu.Opt) error {
-	return os.ErrInvalid
-}
-
-func doDedupFuzzy(wlog.UI, wmenu.Opt) error {
-	return os.ErrInvalid
 }
 
 func printPreamble(ui wlog.UI) {
