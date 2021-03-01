@@ -27,7 +27,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	cli, err := warden.NewWarden(*fbw, *fto)
+	cli, err := warden.NewCli(*fbw, *fto)
 	if err != nil {
 		ui.Error(err.Error())
 		os.Exit(1)

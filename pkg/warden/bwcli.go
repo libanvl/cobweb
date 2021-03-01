@@ -8,39 +8,27 @@ import (
 	"time"
 )
 
-type Warden interface {
-	ExePath() string
-	Sync() (string, error)
-	Status() (*Status, error)
-	Vault() (Vault, error)
-	DeleteItem(*Item) error
-}
-
-type cli struct {
+type Cli struct {
 	bwexe   string
 	timeout time.Duration
 }
 
 type operation func(context.Context) error
 
-func init() {
-	var _ Warden = cli{}
-}
-
-func NewWarden(bwexe string, timeout time.Duration) (Warden, error) {
+func NewCli(bwexe string, timeout time.Duration) (*Cli, error) {
 	bwexe, err := exec.LookPath(bwexe)
 	if err != nil {
 		return nil, err
 	}
 
-	return &cli{bwexe: bwexe, timeout: timeout}, nil
+	return &Cli{bwexe: bwexe, timeout: timeout}, nil
 }
 
-func (c cli) ExePath() string {
+func (c Cli) ExePath() string {
 	return c.bwexe
 }
 
-func (c cli) Sync() (string, error) {
+func (c Cli) Sync() (string, error) {
 	var out []byte
 	err := c.withTimeout(
 		context.Background(),
@@ -62,7 +50,7 @@ func (c cli) Sync() (string, error) {
 	return string(out), nil
 }
 
-func (c cli) Status() (*Status, error) {
+func (c Cli) Status() (*Status, error) {
 	var out []byte
 	var status Status
 	err := c.withTimeout(
@@ -89,7 +77,7 @@ func (c cli) Status() (*Status, error) {
 	return &status, nil
 }
 
-func (c cli) Vault() (Vault, error) {
+func (c Cli) Vault() (Vault, error) {
 	var out []byte
 	var vault Vault
 	err := c.withTimeout(
@@ -115,7 +103,7 @@ func (c cli) Vault() (Vault, error) {
 	return vault, nil
 }
 
-func (c cli) DeleteItem(item *Item) error {
+func (c Cli) DeleteItem(item *Item) error {
 	return c.withTimeout(
 		context.Background(),
 		func(ctx context.Context) error {
@@ -124,11 +112,11 @@ func (c cli) DeleteItem(item *Item) error {
 		})
 }
 
-func (c cli) command(ctx context.Context, arg ...string) *exec.Cmd {
+func (c Cli) command(ctx context.Context, arg ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, c.bwexe, arg...)
 }
 
-func (c cli) withTimeout(parent context.Context, op operation) error {
+func (c Cli) withTimeout(parent context.Context, op operation) error {
 	if op == nil {
 		return nil
 	}

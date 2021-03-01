@@ -23,7 +23,7 @@ type MenuBuilder interface {
 type RunOpts struct {
 	UI          wlog.UI
 	MenuBuilder MenuBuilder
-	Warden      warden.Warden
+	Warden      *warden.Cli
 }
 
 type RunEntry interface {
