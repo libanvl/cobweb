@@ -1,22 +1,36 @@
-package ext
+package hosts
 
 import (
 	"fmt"
 
 	"github.com/dixonwille/wmenu/v5"
+	"github.com/libanvl/cobweb/cmd/cobweb/core"
 	"github.com/libanvl/cobweb/pkg/warden"
 )
 
 func init() {
-	var _ RunEntry = dedup{}
-	GlobalRunRegistry["Clean Duplicate Hostnames (Exact)"] = func(ro *RunOpts, t string) (RunEntry, error) {
+	var _ core.RunEntry = dedup{}
+	var _ core.HelpProvider = dedup{}
+	RunRegistry["Clean Duplicate Hostnames (Exact)"] = func(ro *core.RunOpts, t string) (core.RunEntry, error) {
 		return dedup{opts: ro, title: t}, nil
 	}
 }
 
 type dedup struct {
-	opts  *RunOpts
+	opts  *core.RunOpts
 	title string
+}
+
+func (d dedup) Title() string {
+	return d.title
+}
+
+func (dedup) Summary() string {
+	return "Groups login items by hostname. Select items to delete from each group."
+}
+
+func (dedup) Detail() string {
+	return "Matches are exact string matches of the hostname component of the login URIs"
 }
 
 func (d dedup) Run() error {
@@ -85,7 +99,7 @@ func (d *dedup) processMap(hnitems warden.HostnameItemMap) error {
 		}
 
 		menu.Option("Skip", "SKIP", true, nil)
-		menu = menubld.AddExit(menu, 0, ui.Success, false)
+		menu = menubld.AddQuitMenu(menu, false)
 		err := menu.Run()
 		if err != nil {
 			return err

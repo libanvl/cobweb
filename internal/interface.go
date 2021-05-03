@@ -1,12 +1,14 @@
-package ext
+package core
 
 import (
+	"errors"
+
 	"github.com/dixonwille/wlog/v3"
 	"github.com/dixonwille/wmenu/v5"
 	"github.com/libanvl/cobweb/pkg/warden"
 )
 
-var GlobalRunRegistry RunRegistry = make(RunRegistry, 0)
+var ErrQuitMenu error = errors.New("Quit current menu")
 
 type RunRegistry map[EntryTitle]RunEntryFactory
 
@@ -16,8 +18,9 @@ type EntryTitle string
 
 type MenuBuilder interface {
 	DefaultMenu(string) *wmenu.Menu
-	AddRunEntries(*wmenu.Menu, *RunOpts, RunRegistry) *wmenu.Menu
-	AddExit(*wmenu.Menu, int, func(string), bool) *wmenu.Menu
+	AddRunEntry(*wmenu.Menu, *RunOpts, RunEntry) *wmenu.Menu
+	AddRunRegistry(*wmenu.Menu, *RunOpts, RunRegistry) *wmenu.Menu
+	AddQuitMenu(menu *wmenu.Menu, isDefault bool) *wmenu.Menu
 }
 
 type RunOpts struct {
@@ -27,7 +30,13 @@ type RunOpts struct {
 }
 
 type RunEntry interface {
+	Title() string
 	Run() error
+}
+
+type HelpProvider interface {
+	Summary() string
+	Detail() string
 }
 
 func (et EntryTitle) String() string {

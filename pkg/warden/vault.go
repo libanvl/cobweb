@@ -55,3 +55,16 @@ func (v Vault) PasswordItemMap() PasswordItemMap {
 
 	return result
 }
+
+func (v Vault) Filter(filter func(*Item) bool) Vault {
+	result := make(Vault, 0)
+	for _, item := range v {
+		if !filter(item) {
+			continue
+		}
+
+		result = append(result, item)
+	}
+
+	return result
+}
